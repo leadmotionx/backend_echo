@@ -2,6 +2,7 @@ const express = require('express');
 const cors = require('cors');
 const dotenv = require('dotenv');
 const connectDB = require('./config/db');
+const connectCloudinary = require('./config/cloudinary');
 const adminRouter = require('./routes/adminRoute');
 const userRouter = require('./routes/userRoute');
 const productRouter = require('./routes/productRoute');
@@ -21,8 +22,15 @@ app.use(express.json());
 app.use(cors());
 app.use('/uploads', express.static('uploads'));
 
-// Database connection
-connectDB();
+// Database connection middleware
+const dbMiddleware = async (req, res, next) => {
+    await connectDB();
+    next();
+};
+
+app.use('/api', dbMiddleware);
+
+connectCloudinary();
 
 // API routes
 app.use('/api/admin', adminRouter);

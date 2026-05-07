@@ -1,4 +1,5 @@
 const productModel = require("../models/productModel");
+const cloudinary = require("cloudinary").v2;
 const fs = require("fs");
 
 // Add Product
@@ -16,13 +17,28 @@ const addProduct = async (req, res) => {
       bestseller,
       isNewArrival,
     } = req.body;
-    const image1 = req.files.image1 && req.files.image1[0].filename;
-    const image2 = req.files.image2 && req.files.image2[0].filename;
-    const image3 = req.files.image3 && req.files.image3[0].filename;
-    const image4 = req.files.image4 && req.files.image4[0].filename;
+
+    const image1 = req.files.image1 && req.files.image1[0];
+    const image2 = req.files.image2 && req.files.image2[0];
+    const image3 = req.files.image3 && req.files.image3[0];
+    const image4 = req.files.image4 && req.files.image4[0];
 
     const images = [image1, image2, image3, image4].filter(
       (item) => item !== undefined,
+    );
+
+    // Upload to Cloudinary
+    let imagesUrl = await Promise.all(
+      images.map(async (item) => {
+        let result = await cloudinary.uploader.upload(item.path, {
+          resource_type: "image",
+        });
+        // Clean up local temporary file
+        if (fs.existsSync(item.path)) {
+          fs.unlinkSync(item.path);
+        }
+        return result.secure_url;
+      }),
     );
 
     const productData = {
@@ -36,7 +52,7 @@ const addProduct = async (req, res) => {
       bestseller: bestseller === "true" || bestseller === true ? true : false,
       isNewArrival: isNewArrival === "true" || isNewArrival === true ? true : false,
       sizes: JSON.parse(sizes),
-      image: images,
+      image: imagesUrl,
       date: Date.now(),
     };
 
@@ -90,6 +106,33 @@ const updateProduct = async (req, res) => {
       isNewArrival: isNewArrival === "true" || isNewArrival === true ? true : false,
       sizes: JSON.parse(sizes),
     };
+
+    // Handle Image Updates if files are provided
+    if (req.files && Object.keys(req.files).length > 0) {
+      const image1 = req.files.image1 && req.files.image1[0];
+      const image2 = req.files.image2 && req.files.image2[0];
+      const image3 = req.files.image3 && req.files.image3[0];
+      const image4 = req.files.image4 && req.files.image4[0];
+
+      const images = [image1, image2, image3, image4].filter(
+        (item) => item !== undefined
+      );
+
+      if (images.length > 0) {
+        let imagesUrl = await Promise.all(
+          images.map(async (item) => {
+            let result = await cloudinary.uploader.upload(item.path, {
+              resource_type: "image",
+            });
+            if (fs.existsSync(item.path)) {
+              fs.unlinkSync(item.path);
+            }
+            return result.secure_url;
+          })
+        );
+        updateData.image = imagesUrl;
+      }
+    }
 
     await productModel.findByIdAndUpdate(id, updateData);
     res.json({ success: true, message: "Product Updated" });
